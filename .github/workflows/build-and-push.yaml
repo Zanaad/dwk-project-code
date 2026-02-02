@@ -50,7 +50,7 @@ jobs:
       - name: Build and push Frontend image
         run: |
           docker build -t $REGISTRY/$PROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:staging-$GITHUB_SHA ./todo-app
-          docker push $REGISTRY/$Pstep clones dwk-project-gitops into a folder called gitops:ROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:staging-$GITHUB_SHA
+          docker push $REGISTRY/$PROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:staging-$GITHUB_SHA
 
       - name: Build and push Backend image
         run: |
