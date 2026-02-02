@@ -1,0 +1,190 @@
+name: Release application
+
+on: 
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+env:
+  PROJECT_ID: ${{ secrets.GKE_PROJECT }}
+  REGISTRY: europe-west3-docker.pkg.dev
+  REPOSITORY: todo-project
+  BROADCASTER_IMAGE: broadcaster
+  FRONTEND_IMAGE: todo-app
+  BACKEND_IMAGE: todo-backend
+  JOB_IMAGE: todo-cronjob
+
+jobs:
+  build-publish-staging:
+    name: Build and Push to Staging
+    if: github.ref == 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    
+    outputs:
+      tag: staging-${{ github.sha }}
+      env: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GKE_SA_KEY }}'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker europe-west3-docker.pkg.dev --quiet
+
+      - name: Build and push Broadcaster image
+        run: |
+          docker build -t $REGISTRY/$PROJECT_ID/$REPOSITORY/$BROADCASTER_IMAGE:staging-$GITHUB_SHA ./broadcaster
+          docker push $REGISTRY/$PROJECT_ID/$REPOSITORY/$BROADCASTER_IMAGE:staging-$GITHUB_SHA
+
+      - name: Build and push Frontend image
+        run: |
+          docker build -t $REGISTRY/$PROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:staging-$GITHUB_SHA ./todo-app
+          docker push $REGISTRY/$Pstep clones dwk-project-gitops into a folder called gitops:ROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:staging-$GITHUB_SHA
+
+      - name: Build and push Backend image
+        run: |
+          docker build -t $REGISTRY/$PROJECT_ID/$REPOSITORY/$BACKEND_IMAGE:staging-$GITHUB_SHA ./todo-backend
+          docker push $REGISTRY/$PROJECT_ID/$REPOSITORY/$BACKEND_IMAGE:staging-$GITHUB_SHA
+
+      - name: Build and push Job image
+        run: |
+          docker build -t $REGISTRY/$PROJECT_ID/$REPOSITORY/$JOB_IMAGE:staging-$GITHUB_SHA ./todo-job
+          docker push $REGISTRY/$PROJECT_ID/$REPOSITORY/$JOB_IMAGE:staging-$GITHUB_SHA
+
+  build-publish-production:
+    name: Build and Push to Production
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    
+    outputs:
+      tag: ${{ steps.tag.outputs.TAG }}
+      env: prod
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get tag name
+        id: tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GKE_SA_KEY }}'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker europe-west3-docker.pkg.dev --quiet
+
+      - name: Build and push Broadcaster image
+        run: |
+          docker build -t $REGISTRY/$PROJECT_ID/$REPOSITORY/$BROADCASTER_IMAGE:${{ steps.tag.outputs.TAG }} ./broadcaster
+          docker push $REGISTRY/$PROJECT_ID/$REPOSITORY/$BROADCASTER_IMAGE:${{ steps.tag.outputs.TAG }}
+
+      - name: Build and push Frontend image
+        run: |
+          docker build -t $REGISTRY/$PROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:${{ steps.tag.outputs.TAG }} ./todo-app
+          docker push $REGISTRY/$PROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:${{ steps.tag.outputs.TAG }}
+
+      - name: Build and push Backend image
+        run: |
+          docker build -t $REGISTRY/$PROJECT_ID/$REPOSITORY/$BACKEND_IMAGE:${{ steps.tag.outputs.TAG }} ./todo-backend
+          docker push $REGISTRY/$PROJECT_ID/$REPOSITORY/$BACKEND_IMAGE:${{ steps.tag.outputs.TAG }}
+
+      - name: Build and push Job image
+        run: |
+          docker build -t $REGISTRY/$PROJECT_ID/$REPOSITORY/$JOB_IMAGE:${{ steps.tag.outputs.TAG }} ./todo-job
+          docker push $REGISTRY/$PROJECT_ID/$REPOSITORY/$JOB_IMAGE:${{ steps.tag.outputs.TAG }}
+
+  update-gitops-staging:
+    name: Update GitOps Staging Configuration
+    needs: build-publish-staging
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout GitOps repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/dwk-project-gitops
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops
+
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v2.1.0
+
+      - name: Update staging image tags
+        run: |
+          cd gitops/overlays/staging
+          
+          kustomize edit set image broadcaster=$REGISTRY/$PROJECT_ID/$REPOSITORY/$BROADCASTER_IMAGE:${{ needs.build-publish-staging.outputs.tag }}
+          kustomize edit set image todo-app=$REGISTRY/$PROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:${{ needs.build-publish-staging.outputs.tag }}
+          kustomize edit set image todo-backend=$REGISTRY/$PROJECT_ID/$REPOSITORY/$BACKEND_IMAGE:${{ needs.build-publish-staging.outputs.tag }}
+          kustomize edit set image todo-job=$REGISTRY/$PROJECT_ID/$REPOSITORY/$JOB_IMAGE:${{ needs.build-publish-staging.outputs.tag }}
+        env:
+          REGISTRY: europe-west3-docker.pkg.dev
+          PROJECT_ID: ${{ secrets.GKE_PROJECT }}
+          REPOSITORY: dwk-project
+
+      - name: Commit staging kustomization
+        uses: EndBug/add-and-commit@v9
+        with:
+          cwd: gitops
+          add: 'overlays/staging/kustomization.yaml'
+          message: 'Update staging images to ${{ github.sha }}'
+          pull: '--rebase --autostash'
+          default_author: github_actions
+          github_token: ${{ secrets.GITOPS_PAT }}
+
+  update-gitops-production:
+    name: Update GitOps Production Configuration
+    needs: build-publish-production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout GitOps repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/dwk-project-gitops
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops
+
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v2.1.0
+
+      - name: Update production image tags
+        run: |
+          cd gitops/overlays/prod
+          
+          kustomize edit set image broadcaster=$REGISTRY/$PROJECT_ID/$REPOSITORY/$BROADCASTER_IMAGE:${{ needs.build-publish-production.outputs.tag }}
+          kustomize edit set image todo-app=$REGISTRY/$PROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:${{ needs.build-publish-production.outputs.tag }}
+          kustomize edit set image todo-backend=$REGISTRY/$PROJECT_ID/$REPOSITORY/$BACKEND_IMAGE:${{ needs.build-publish-production.outputs.tag }}
+          kustomize edit set image todo-job=$REGISTRY/$PROJECT_ID/$REPOSITORY/$JOB_IMAGE:${{ needs.build-publish-production.outputs.tag }}
+        env:
+          REGISTRY: europe-west3-docker.pkg.dev
+          PROJECT_ID: ${{ secrets.GKE_PROJECT }}
+          REPOSITORY: dwk-project
+
+      - name: Commit production kustomization
+        uses: EndBug/add-and-commit@v9
+        with:
+          cwd: gitops
+          add: 'overlays/prod/kustomization.yaml'
+          message: 'Update production images to ${{ needs.build-publish-production.outputs.tag }}'
+          pull: '--rebase --autostash'
+          default_author: github_actions
+          github_token: ${{ secrets.GITOPS_PAT }}
