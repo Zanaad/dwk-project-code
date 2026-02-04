@@ -17,118 +17,19 @@ The Todo Project is a full-stack application demonstrating Kubernetes deployment
 
 ### 1. Broadcaster (`broadcaster/`)
 
-Event broadcasting service that listens to NATS messages and sends notifications to Discord.
-
-**Technology Stack:**
-
-- Node.js
-- NATS client for message streaming
-- Axios for HTTP requests
-
-**Key Features:**
-
-- Listens to `todo.created` and `todo.updated` NATS events
-- Sends formatted messages to Discord webhook
-- Falls back to console logging if webhook URL not configured (useful for staging)
-- Queue group for handling multiple broadcaster instances
-
-**Environment Variables:**
-
-- `DISCORD_WEBHOOK_URL`: Discord webhook URL (optional in staging)
-- `NATS_URL`: NATS server connection string (default: `nats://my-nats.todo.svc.cluster.local:4222`)
+Event broadcasting service that listens to NATS messages and sends notifications to Discord. Subscribes to `todo.created` and `todo.updated` events, forwarding them to a Discord webhook (or console in staging environments).
 
 ### 2. Todo App (`todo-app/`)
 
-Frontend application providing the user interface for todo management.
-
-**Technology Stack:**
-
-- Node.js HTTP server
-- HTML/JavaScript frontend
-- Image caching with metadata tracking
-- Proxies requests to backend API
-
-**Key Features:**
-
-- Serves static HTML/JavaScript from `public/` directory
-- Proxies todo API calls to backend (`/todos`, `/todos/:id`)
-- Serves cached images with 10-minute TTL
-- Health and readiness probes for Kubernetes
-
-**Endpoints:**
-
-- `/`: Main todo application interface
-- `/todos`: GET/POST proxy to backend
-- `/todos/:id`: PUT proxy to backend (mark as done)
-- `/image`: Cached image (Picsum Photos, 10-minute cache)
-- `/healthz`: Liveness probe
-- `/readyz`: Readiness probe (checks backend connectivity)
-
-**Environment Variables:**
-
-- `TODO_BACKEND_URL`: Backend service URL (default: `http://todo-backend-svc:3000`)
-- `IMAGE_URL`: Image source URL (default: `https://picsum.photos/1200`)
-- `CACHE_DURATION_MS`: Image cache duration in milliseconds (default: `600000` = 10 minutes)
-- `IMAGE_DIR`: Directory to cache images (default: `/var/lib/data`)
-- `PORT`: Server port (default: `3000`)
+Frontend application serving the user interface for todo management. Serves static HTML/JavaScript and proxies API requests to the backend. Includes image caching (10-minute TTL) and Kubernetes health probes for readiness/liveness checks.
 
 ### 3. Todo Backend (`todo-backend/`)
 
-Backend API service handling business logic and data persistence.
-
-**Technology Stack:**
-
-- Node.js HTTP server
-- PostgreSQL 16 for data storage (using pg client)
-- NATS publisher for event streaming
-
-**Key Features:**
-
-- RESTful API for todo operations (CRUD)
-- Raw SQL queries for database operations
-- Event publishing to NATS on todo state changes
-- Health and readiness probes
-- Automatic table initialization
-
-**Endpoints:**
-
-- `GET /todos`: List all todos
-- `POST /todos`: Create new todo
-- `PUT /todos/:id`: Mark todo as done
-- `GET /healthz`: Health check
-- `GET /readyz`: Readiness check
-
-**Environment Variables:**
-
-- `POSTGRES_HOST`: PostgreSQL hostname (default: `postgres-svc`)
-- `POSTGRES_DB`: Database name (default: `todo`)
-- `POSTGRES_USER`: Database username (default: `postgres`)
-- `POSTGRES_PASSWORD`: Database password (required)
-- `NATS_URL`: NATS server connection string (default: `nats://my-nats.todo.svc.cluster.local:4222`)
-- `PORT`: Server port (default: `3000`)
-
-**Notes:**
-
-- NATS connection is optional—server runs without it if unavailable
-- Todos have a 140-character limit
-- `/readyz` checks database connectivity
+RESTful API service handling business logic and data persistence. Uses PostgreSQL 16 for storage and publishes events to NATS on todo state changes. Provides CRUD operations for todos with automatic database initialization and health checks.
 
 ### 4. Todo Job (`todo-job/`)
 
-Scheduled job that creates reminders to read Wikipedia articles.
-
-**Technology Stack:**
-
-- Bash script with curl and jq
-- Runs as Kubernetes CronJob
-- HTTP requests to backend API
-
-**Key Features:**
-
-- Hourly execution (runs at the start of each hour)
-- Fetches random Wikipedia article URLs from `https://en.wikipedia.org/wiki/Special:Random`
-- Creates todo items via backend API
-- Minimal dependencies for container efficiency
+Kubernetes CronJob that runs hourly to create Wikipedia article reading reminders. Fetches random article URLs and creates todo items via the backend API using a simple bash script.
 
 ## CI/CD Workflow
 
@@ -172,68 +73,13 @@ Configure these in GitHub repository settings:
 - `GKE_SA_KEY`: Service account JSON key with Artifact Registry write permissions
 - `GITOPS_PAT`: Personal access token with write access to dwk-project-gitops repo
 
-## Development Setup
+## Development
 
-### Prerequisites
+**Prerequisites:** Docker, Node.js 20+, Git
 
-- Docker and Docker Compose
-- Node.js 20+ and npm
-- Git
-- Access to GKE cluster for testing
+Each service can be built with `docker build` from its respective directory. For local testing, services require PostgreSQL 16 and NATS (can be run via Docker).
 
-##PostgreSQL 16 (for local testing)
-
-- NATS server (for local testing)
-
-### Local Development
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/Zanaad/dwk-project-code.git
-   cd dwk-project-code
-   ```
-
-2. **Build individual services:**
-
-   ```bash
-   # Broadcaster
-   cd broadcaster && docker build -t broadcaster:local .
-
-   # Todo App
-   cd todo-app && docker build -t todo-app:local .
-
-   # Todo Backend
-   cd todo-backend && docker build -t todo-backend:local .
-
-   # Todo Job
-   cd todo-job && docker build -t todo-job:local .
-   ```
-
-3. **Run services locally (example for backend):**
-
-   ```bash
-   cd todo-backend
-   npm install
-
-   # Set environment variables
-   export POSTGRES_HOST=localhost
-   export POSTGRES_DB=todo
-   export POSTGRES_USER=postgres
-   export POSTGRES_PASSWORD=postgres
-   export NATS_URL=nats://localhost:4222
-   export PORT=3000
-
-   npm start
-   ```
-
-4. **Set up local PostgreSQL and NATS (optional):**
-
-   ```bash
-   # Start PostgreSQL and NATS with Docker
-   docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
-   docker run -d -p 4222:4222 nats:latest -js
-   ```
+## Deployment
 
 Deployment is automated through **GitOps** using ArgoCD. This repository only contains application code; Kubernetes manifests are in [dwk-project-gitops](https://github.com/Zanaad/dwk-project-gitops).
 

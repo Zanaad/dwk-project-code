@@ -131,10 +131,10 @@ jobs:
         run: |
           cd gitops/overlays/staging
           
-          kustomize edit set image broadcaster=$REGISTRY/$PROJECT_ID/$REPOSITORY/$BROADCASTER_IMAGE:${{ needs.build-publish-staging.outputs.tag }}
-          kustomize edit set image todo-app=$REGISTRY/$PROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:${{ needs.build-publish-staging.outputs.tag }}
-          kustomize edit set image todo-backend=$REGISTRY/$PROJECT_ID/$REPOSITORY/$BACKEND_IMAGE:${{ needs.build-publish-staging.outputs.tag }}
-          kustomize edit set image todo-job=$REGISTRY/$PROJECT_ID/$REPOSITORY/$JOB_IMAGE:${{ needs.build-publish-staging.outputs.tag }}
+          kustomize edit set image BROADCASTER_IMAGE=$REGISTRY/$PROJECT_ID/$REPOSITORY/$BROADCASTER_IMAGE:${{ needs.build-publish-staging.outputs.tag }}
+          kustomize edit set image TODO_APP_IMAGE=$REGISTRY/$PROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:${{ needs.build-publish-staging.outputs.tag }}
+          kustomize edit set image TODO_BACKEND_IMAGE=$REGISTRY/$PROJECT_ID/$REPOSITORY/$BACKEND_IMAGE:${{ needs.build-publish-staging.outputs.tag }}
+          kustomize edit set image TODO_JOB_IMAGE=$REGISTRY/$PROJECT_ID/$REPOSITORY/$JOB_IMAGE:${{ needs.build-publish-staging.outputs.tag }}
         env:
           REGISTRY: europe-west3-docker.pkg.dev
           PROJECT_ID: ${{ secrets.GKE_PROJECT }}
@@ -170,10 +170,10 @@ jobs:
         run: |
           cd gitops/overlays/prod
           
-          kustomize edit set image broadcaster=$REGISTRY/$PROJECT_ID/$REPOSITORY/$BROADCASTER_IMAGE:${{ needs.build-publish-production.outputs.tag }}
-          kustomize edit set image todo-app=$REGISTRY/$PROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:${{ needs.build-publish-production.outputs.tag }}
-          kustomize edit set image todo-backend=$REGISTRY/$PROJECT_ID/$REPOSITORY/$BACKEND_IMAGE:${{ needs.build-publish-production.outputs.tag }}
-          kustomize edit set image todo-job=$REGISTRY/$PROJECT_ID/$REPOSITORY/$JOB_IMAGE:${{ needs.build-publish-production.outputs.tag }}
+          kustomize edit set image BROADCASTER_IMAGE=$REGISTRY/$PROJECT_ID/$REPOSITORY/$BROADCASTER_IMAGE:${{ needs.build-publish-production.outputs.tag }}
+          kustomize edit set image TODO_APP_IMAGE=$REGISTRY/$PROJECT_ID/$REPOSITORY/$FRONTEND_IMAGE:${{ needs.build-publish-production.outputs.tag }}
+          kustomize edit set image TODO_BACKEND_IMAGE=$REGISTRY/$PROJECT_ID/$REPOSITORY/$BACKEND_IMAGE:${{ needs.build-publish-production.outputs.tag }}
+          kustomize edit set image TODO_JOB_IMAGE=$REGISTRY/$PROJECT_ID/$REPOSITORY/$JOB_IMAGE:${{ needs.build-publish-production.outputs.tag }}
         env:
           REGISTRY: europe-west3-docker.pkg.dev
           PROJECT_ID: ${{ secrets.GKE_PROJECT }}
